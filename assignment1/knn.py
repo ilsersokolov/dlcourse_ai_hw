@@ -1,10 +1,12 @@
 import numpy as np
 from scipy import stats
 
+
 class KNN:
     """
     K-neariest-neighbor classifier using L1 loss
     """
+
     def __init__(self, k=1):
         self.k = k
 
@@ -135,5 +137,6 @@ class KNN:
         for i in range(num_test):
             # Implement choosing best class based on k
             # nearest training samples
-            pred[i] = stats.mode(self.train_y[np.argpartition(dists[i], self.k)[:self.k]])[0]
+            pred[i] = stats.mode(
+                self.train_y[np.argpartition(dists[i], self.k)[:self.k]])[0]
         return pred

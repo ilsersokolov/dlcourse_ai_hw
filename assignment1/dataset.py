@@ -23,7 +23,7 @@ def load_data_mat(filename, max_samples, seed=42):
     samples = np.random.choice(np.arange(X.shape[0]),
                                max_samples,
                                replace=False)
-    
+
     return X[samples].astype(np.float32), y[samples]
 
 
@@ -40,15 +40,17 @@ def load_svhn(folder, max_train, max_test):
     test_X, np array (num_test, 32, 32, 3) - test images
     test_y, np array of int (num_test) - test labels
     '''
-    train_X, train_y = load_data_mat(os.path.join(folder, "train_32x32.mat"), max_train)
-    test_X, test_y = load_data_mat(os.path.join(folder, "test_32x32.mat"), max_test)
+    train_X, train_y = load_data_mat(
+        os.path.join(folder, "train_32x32.mat"), max_train)
+    test_X, test_y = load_data_mat(
+        os.path.join(folder, "test_32x32.mat"), max_test)
     return train_X, train_y, test_X, test_y
 
 
 def random_split_train_val(X, y, num_val, seed=42):
     '''
     Randomly splits dataset into training and validation
-    
+
     Arguments:
     X - np array with samples
     y - np array with labels
@@ -62,7 +64,7 @@ def random_split_train_val(X, y, num_val, seed=42):
     val_y, np array of int (num_val) - validation labels
     '''
     np.random.seed(seed)
-    
+
     indices = np.arange(X.shape[0])
     np.random.shuffle(indices)
 
@@ -75,5 +77,3 @@ def random_split_train_val(X, y, num_val, seed=42):
     val_y = y[val_indices]
 
     return train_X, train_y, val_X, val_y
-    
-    
