@@ -284,7 +284,7 @@ class MaxPoolingLayer:
             raise ValueError('stride must be greater 0')
         self.pool_size = pool_size
         self.stride = stride
-        self.grad = None
+        self.X = None
 
     def forward(self, X):
         batch_size, height, width, channels = X.shape
@@ -294,47 +294,33 @@ class MaxPoolingLayer:
         out_height = int((height - self.pool_size)/self.stride + 1)
         out_width = int((width - self.pool_size)/self.stride + 1)
         result = np.zeros((batch_size, out_height, out_width, channels))
-        self.grad = np.zeros_like(X)
-        # for bs in range(batch_size):
-        #     for ch in range(channels):
-        #         for y in range(out_height):
-        #             for x in range(out_width):
-        #                 X_ = X[bs,y*self.stride:y*self.stride+self.pool_size,
-        #                          x*self.stride:x*self.stride+self.pool_size,ch]
-        #                 g_y,g_x = np.unravel_index(np.argmax(X_, axis=None), X_.shape)
-        #                 result[bs,y,x,ch] = X_[g_y, g_x]
-        #                 self.grad[bs, g_y, g_x, ch] = 1
+        self.X = X.copy()
         for bs in range(batch_size):
             for ch in range(channels):
                 for y in range(out_height):
                     for x in range(out_width):
                         X_ = X[bs, y * self.stride:y * self.stride + self.pool_size,
                                     x * self.stride:x * self.stride + self.pool_size, ch]
-                        g_y, g_x = np.unravel_index(np.argmax(X_, axis=None), X_.shape)
-                        self.grad[bs, g_y, g_x, ch] = 1
-                        result[bs, y, x, ch] = X_[g_y, g_x]
+                        result[bs, y, x, ch] = np.max(X_)
         return result
 
     def backward(self, d_out):
         # Implement maxpool backward pass
         # , height, width, channels = self.grad.shape
         batch_size, out_height, out_width, out_channels = d_out.shape
-        d_result = np.zeros_like(self.grad)
-        # for y in range(out_height):
-        #     for x in range(out_width):
-        #         d_result[:, y:y+self.stride, x:x+self.stride, :] = \
-        #             self.grad[:, y:y + self.stride, x:x +
-        #                       self.stride, :] * d_out[:, y:y+1, x:x+1, :]
+        d_result = np.zeros_like(self.X)
         for bs in range(batch_size):
             for ch in range(out_channels):
                 for y in range(out_height):
                     for x in range(out_width):
-                        d_result[bs,y*self.stride:y*self.stride+self.pool_size,
-                                 x*self.stride:x*self.stride+self.pool_size,ch] = \
-                                     self.grad[bs,y*self.stride:y*self.stride+self.pool_size,
-                                               x*self.stride:x*self.stride+self.pool_size,ch] * \
-                                                   d_out[bs,y,x,ch]
-
+                        x_start = x * self.stride
+                        x_end = x_start + self.pool_size
+                        y_start = y * self.stride
+                        y_end = y_start + self.pool_size
+                        X_ = self.X[bs, y_start:y_end,x_start:x_end, ch]
+                        mask = (X_ == np.max(X_))
+                        d_result[bs, y_start:y_end,x_start:x_end, ch] += \
+                                     np.multiply(d_out[bs,y,x,ch],mask)
 
         return d_result
 
