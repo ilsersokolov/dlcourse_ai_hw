@@ -184,19 +184,17 @@ class ConvolutionalLayer:
         self.X = None
 
     def forward(self, X):
-        batch_size, height, width, channels = X.shape
-
         # Implement forward pass
         # Hint: setup variables that hold the result
         # and one x/y location at a time in the loop below
         if self.padding > 0:
             self.X = np.zeros(
-                (batch_size, height+2*self.padding, width+2*self.padding, channels))
+                (X.shape[0], X.shape[1]+2*self.padding, X.shape[2]+2*self.padding, X.shape[3]))
             self.X[:, self.padding:-self.padding,
                    self.padding:-self.padding, :] = X
-            batch_size, height, width, channels = self.X.shape
         else:
             self.X = X.copy()
+        batch_size, height, width, channels = self.X.shape
         filter_size, filter_size, in_channels, out_channels = self.W.value.shape
         out_height = height - filter_size + 1
         out_width = width - filter_size + 1
@@ -236,30 +234,34 @@ class ConvolutionalLayer:
 
         # Try to avoid having any other loops here too
         d_result = np.zeros_like(self.X)
-        print("Here")
+        # print("Here")
         for y in range(out_height):
             for x in range(out_width):
                 # Implement backward pass for specific location
                 # Aggregate gradients for both the input and
                 # the parameters (W and B)
-                X_ = self.X[:, y:y+filter_size, x:x+filter_size,:]
-                X_ = X_.reshape(batch_size, filter_size*filter_size*in_channels)
+                X_ = self.X[:, y:y+filter_size, x:x+filter_size, :]
+                X_ = X_.reshape(batch_size, filter_size *
+                                filter_size*in_channels)
                 d_out_ = d_out[:, y, x, :]
                 d_out_ = d_out_.reshape(batch_size, out_channels)
                 grad = np.dot(d_out_, W.T)
-                grad = grad.reshape(batch_size, filter_size, filter_size, in_channels)
+                grad = grad.reshape(batch_size, filter_size,
+                                    filter_size, in_channels)
                 d_result[:, y:y+filter_size, x:x+filter_size, :] += grad
-                # dW_ = np.dot(X_.T, d_out_)
-                # dW_ = dW_.reshape(filter_size,filter_size, in_channels, out_channels)
-                # dW += dW_
-                # dB += np.sum(d_out_, axis=0)
+                dW_ = np.dot(X_.T, d_out_)
+                dW_ = dW_.reshape(filter_size, filter_size,
+                                  in_channels, out_channels)
+                dW += dW_
+                dB += np.sum(d_out_, axis=0)
 
         if self.padding > 0:
-            d_result = d_result[:, self.padding:-self.padding, self.padding:-self.padding, :]
+            d_result = d_result[:, self.padding:-
+                                self.padding, self.padding:-self.padding, :]
 
-        n = out_height*out_width
-        self.W.grad += dW/n
-        self.B.grad += dB/n
+        # n = out_height*out_width
+        self.W.grad += dW  # /n
+        self.B.grad += dB  # /n
 
         return d_result
 
@@ -277,45 +279,62 @@ class MaxPoolingLayer:
         stride, int - step size between pooling windows
         '''
         if pool_size < stride:
-            ValueError('pool size mast be greater or eq stride')
+            raise ValueError('pool size mast be greater or eq stride')
+        if stride < 1:
+            raise ValueError('stride must be greater 0')
         self.pool_size = pool_size
         self.stride = stride
-        self.X = None
+        self.grad = None
 
     def forward(self, X):
         batch_size, height, width, channels = X.shape
         # Implement maxpool forward pass
         # Hint: Similarly to Conv layer, loop on
         # output x/y dimension
-        self.X = X.copy()
         out_height = int((height - self.pool_size)/self.stride + 1)
         out_width = int((width - self.pool_size)/self.stride + 1)
-        if height != self.pool_size + (out_height - 1) * self.stride or width != self.pool_size + (out_width - 1) * self.stride:
-            ValueError('wrong pool_size or stride')
         result = np.zeros((batch_size, out_height, out_width, channels))
-        self.grad = np.zeros_like(self.X)
-        for y in range(out_height):
-            for x in range(out_width):
-                for ch in range(channels):
-                    for bs in range(batch_size):
-                        X_ = self.X[bs, y * self.stride:y * self.stride + self.pool_size,
+        self.grad = np.zeros_like(X)
+        # for bs in range(batch_size):
+        #     for ch in range(channels):
+        #         for y in range(out_height):
+        #             for x in range(out_width):
+        #                 X_ = X[bs,y*self.stride:y*self.stride+self.pool_size,
+        #                          x*self.stride:x*self.stride+self.pool_size,ch]
+        #                 g_y,g_x = np.unravel_index(np.argmax(X_, axis=None), X_.shape)
+        #                 result[bs,y,x,ch] = X_[g_y, g_x]
+        #                 self.grad[bs, g_y, g_x, ch] = 1
+        for bs in range(batch_size):
+            for ch in range(channels):
+                for y in range(out_height):
+                    for x in range(out_width):
+                        X_ = X[bs, y * self.stride:y * self.stride + self.pool_size,
                                     x * self.stride:x * self.stride + self.pool_size, ch]
-                        result[bs, y, x, ch] = np.max(X_)
+                        g_y, g_x = np.unravel_index(np.argmax(X_, axis=None), X_.shape)
+                        self.grad[bs, g_y, g_x, ch] = 1
+                        result[bs, y, x, ch] = X_[g_y, g_x]
         return result
 
     def backward(self, d_out):
         # Implement maxpool backward pass
-        batch_size, height, width, channels = self.X.shape
-        _, out_height, out_width, out_channels = d_out.shape
-        d_result = np.zeros_like(self.X)
-        for y in range(out_height):
-            for x in range(out_width):
-                for ch in range(channels):
-                    for bs in range(batch_size):
-                        X_ = self.X[bs, y * self.stride:y * self.stride + self.pool_size,
-                                    x * self.stride:x * self.stride + self.pool_size, ch]
-                        g_y,g_x=np.unravel_index(np.argmax(X_, axis=None), X_.shape)
-                        d_result[bs,g_y,g_x,ch] = d_out[bs,y,x,ch]
+        # , height, width, channels = self.grad.shape
+        batch_size, out_height, out_width, out_channels = d_out.shape
+        d_result = np.zeros_like(self.grad)
+        # for y in range(out_height):
+        #     for x in range(out_width):
+        #         d_result[:, y:y+self.stride, x:x+self.stride, :] = \
+        #             self.grad[:, y:y + self.stride, x:x +
+        #                       self.stride, :] * d_out[:, y:y+1, x:x+1, :]
+        for bs in range(batch_size):
+            for ch in range(out_channels):
+                for y in range(out_height):
+                    for x in range(out_width):
+                        d_result[bs,y*self.stride:y*self.stride+self.pool_size,
+                                 x*self.stride:x*self.stride+self.pool_size,ch] = \
+                                     self.grad[bs,y*self.stride:y*self.stride+self.pool_size,
+                                               x*self.stride:x*self.stride+self.pool_size,ch] * \
+                                                   d_out[bs,y,x,ch]
+
 
         return d_result
 

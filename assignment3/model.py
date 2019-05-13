@@ -54,9 +54,12 @@ class ConvNet:
         # Compute loss and fill param gradients
         # Don't worry about implementing L2 regularization, we will not
         # need it in this assignment
+        # print('X',X.shape)
         result = self.layers[0].forward(X)
+        # print(type(self.layers[0]),result.shape)
         for layer in self.layers[1:]:
             result = layer.forward(result)
+            # print(type(layer), result.shape)
         loss, grad = softmax_with_cross_entropy(result, y)
         for layer in reversed(self.layers):
             grad = layer.backward(grad)
@@ -78,12 +81,10 @@ class ConvNet:
 
         # Aggregate all the params from all the layers
         # which have parameters
-        i = 0
-        for layer in self.layers:
+        for i,layer in enumerate(self.layers):
             param = layer.params()
             if param:
                 result['W'+str(i)] = param['W']
                 result['B'+str(i)] = param['B']
-                i += 1
 
         return result
