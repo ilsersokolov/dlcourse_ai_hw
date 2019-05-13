@@ -3,7 +3,7 @@ import numpy as np
 from layers import (
     FullyConnectedLayer, ReLULayer,
     ConvolutionalLayer, MaxPoolingLayer, Flattener,
-    softmax_with_cross_entropy, l2_regularization
+    softmax_with_cross_entropy, l2_regularization, softmax
     )
 
 
@@ -26,8 +26,17 @@ class ConvNet:
         conv1_channels, int - number of filters in the 1st conv layer
         conv2_channels, int - number of filters in the 2nd conv layer
         """
-        # TODO Create necessary layers
-        raise Exception("Not implemented!")
+        # Create necessary layers
+        self.layers = [
+            ConvolutionalLayer(input_shape[2],conv1_channels,3,3),
+            ReLULayer(),
+            MaxPoolingLayer(4,4),
+            ConvolutionalLayer(conv1_channels,conv2_channels,3,3),
+            ReLULayer(),
+            MaxPoolingLayer(4,4),
+            Flattener(),
+            FullyConnectedLayer(3*3*conv2_channels, n_output_classes),
+        ]
 
     def compute_loss_and_gradients(self, X, y):
         """
@@ -40,21 +49,41 @@ class ConvNet:
         """
         # Before running forward and backward pass through the model,
         # clear parameter gradients aggregated from the previous pass
-
-        # TODO Compute loss and fill param gradients
+        for param_name, param in self.params().items():
+            param.grad = np.zeros_like(param.value)
+        # Compute loss and fill param gradients
         # Don't worry about implementing L2 regularization, we will not
         # need it in this assignment
-        raise Exception("Not implemented!")
+        result = self.layers[0].forward(X)
+        for layer in self.layers[1:]:
+            result = layer.forward(result)
+        loss, grad = softmax_with_cross_entropy(result, y)
+        for layer in reversed(self.layers):
+            grad = layer.backward(grad)
+
+        return loss
 
     def predict(self, X):
         # You can probably copy the code from previous assignment
-        raise Exception("Not implemented!")
+        pred = np.zeros(X.shape[0], np.int)
+
+        result = self.layers[0].forward(X)
+        for layer in self.layers[1:]:
+            result = layer.forward(result)
+        pred = np.argmax(softmax(result), axis=1)
+        return pred
 
     def params(self):
         result = {}
 
-        # TODO: Aggregate all the params from all the layers
+        # Aggregate all the params from all the layers
         # which have parameters
-        raise Exception("Not implemented!")
+        i = 0
+        for layer in self.layers:
+            param = layer.params()
+            if param:
+                result['W'+str(i)] = param['W']
+                result['B'+str(i)] = param['B']
+                i += 1
 
         return result
