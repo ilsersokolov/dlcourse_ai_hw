@@ -194,21 +194,19 @@ class ConvolutionalLayer:
                    self.padding:-self.padding, :] = X
         else:
             self.X = X.copy()
-        batch_size, height, width, channels = self.X.shape
-        filter_size, filter_size, in_channels, out_channels = self.W.value.shape
-        out_height = height - filter_size + 1
-        out_width = width - filter_size + 1
+        batch_size, height, width, _ = self.X.shape
+        out_height = height - self.filter_size + 1
+        out_width = width - self.filter_size + 1
         W = self.W.value.reshape(
-            filter_size*filter_size*in_channels, out_channels)
-        result = np.zeros((batch_size, out_height, out_width, out_channels))
-
+            self.filter_size*self.filter_size*self.in_channels, self.out_channels)
+        result = np.zeros((batch_size, out_height, out_width, self.out_channels))
         # It's ok to use loops for going over width and height
         # but try to avoid having any other loops
         for y in range(out_height):
             for x in range(out_width):
                 # Implement forward pass for specific location
-                X_ = self.X[:, y:y+filter_size, x:x+filter_size,
-                            :].reshape(batch_size, filter_size*filter_size*channels)
+                X_ = self.X[:, y:y+self.filter_size, x:x+self.filter_size,
+                            :].reshape(batch_size, self.filter_size*self.filter_size*self.in_channels)
                 result[:, y, x, :] = np.dot(X_, W) + self.B.value
 
         return result
@@ -219,16 +217,14 @@ class ConvolutionalLayer:
         # when you implemented FullyConnectedLayer
         # Just do it the same number of times and accumulate gradients
 
-        batch_size, height, width, in_channels = self.X.shape
-        _, out_height, out_width, out_channels = d_out.shape
+        batch_size, out_height, out_width, _ = d_out.shape
 
         # Implement backward pass
         # Same as forward, setup variables of the right shape that
         # aggregate input gradient and fill them for every location
         # of the output
-        filter_size = height - out_height + 1
         W = self.W.value.reshape(
-            filter_size*filter_size*in_channels, out_channels)
+            self.filter_size*self.filter_size*self.in_channels, self.out_channels)
         dW = np.zeros_like(self.W.grad)
         dB = np.zeros_like(self.B.grad)
 
@@ -240,18 +236,18 @@ class ConvolutionalLayer:
                 # Implement backward pass for specific location
                 # Aggregate gradients for both the input and
                 # the parameters (W and B)
-                X_ = self.X[:, y:y+filter_size, x:x+filter_size, :]
-                X_ = X_.reshape(batch_size, filter_size *
-                                filter_size*in_channels)
+                X_ = self.X[:, y:y+self.filter_size, x:x+self.filter_size, :]
+                X_ = X_.reshape(batch_size, self.filter_size *
+                                self.filter_size*self.in_channels)
                 d_out_ = d_out[:, y, x, :]
-                d_out_ = d_out_.reshape(batch_size, out_channels)
+                d_out_ = d_out_.reshape(batch_size, self.out_channels)
                 grad = np.dot(d_out_, W.T)
-                grad = grad.reshape(batch_size, filter_size,
-                                    filter_size, in_channels)
-                d_result[:, y:y+filter_size, x:x+filter_size, :] += grad
+                grad = grad.reshape(batch_size, self.filter_size,
+                                    self.filter_size, self.in_channels)
+                d_result[:, y:y+self.filter_size, x:x+self.filter_size, :] += grad
                 dW_ = np.dot(X_.T, d_out_)
-                dW_ = dW_.reshape(filter_size, filter_size,
-                                  in_channels, out_channels)
+                dW_ = dW_.reshape(self.filter_size, self.filter_size,
+                                  self.in_channels, self.out_channels)
                 dW += dW_
                 dB += np.sum(d_out_, axis=0)
 
@@ -259,9 +255,8 @@ class ConvolutionalLayer:
             d_result = d_result[:, self.padding:-
                                 self.padding, self.padding:-self.padding, :]
 
-        # n = out_height*out_width
-        self.W.grad += dW  # /n
-        self.B.grad += dB  # /n
+        self.W.grad += dW
+        self.B.grad += dB
 
         return d_result
 
@@ -299,8 +294,11 @@ class MaxPoolingLayer:
             for ch in range(channels):
                 for y in range(out_height):
                     for x in range(out_width):
-                        X_ = X[bs, y * self.stride:y * self.stride + self.pool_size,
-                                    x * self.stride:x * self.stride + self.pool_size, ch]
+                        x_start = x * self.stride
+                        x_end = x_start + self.pool_size
+                        y_start = y * self.stride
+                        y_end = y_start + self.pool_size
+                        X_ = X[bs, y_start:y_end, x_start:x_end, ch]
                         result[bs, y, x, ch] = np.max(X_)
         return result
 
@@ -319,8 +317,13 @@ class MaxPoolingLayer:
                         y_end = y_start + self.pool_size
                         X_ = self.X[bs, y_start:y_end,x_start:x_end, ch]
                         mask = (X_ == np.max(X_))
-                        d_result[bs, y_start:y_end,x_start:x_end, ch] += \
-                                     np.multiply(d_out[bs,y,x,ch],mask)
+                        if mask.sum() > 1:
+                            mask = mask / 2
+                        # mask = mask/mask.sum()
+                        # print((bs,y,x,ch),mask.sum())
+                        # mask = np.zeros_like(X_)
+                        # mask [np.unravel_index(X_.argmax(),X_.shape)] = 1
+                        d_result[bs, y_start:y_end,x_start:x_end, ch] += mask * d_out[bs,y,x,ch]
 
         return d_result
 
