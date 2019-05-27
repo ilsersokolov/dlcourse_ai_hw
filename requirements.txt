@@ -1,0 +1,26 @@
+# This file may be used to create an environment using:
+# $ conda create --name <env> --file <this file>
+# platform: win-64
+autopep8
+blas=1.0=mkl
+bokeh
+cudatoolkit=10.0.130=0
+ipywidgets
+jupyter_contrib_nbextensions
+jupyter_nbextensions_configurator
+matplotlib
+mkl
+mkl_fft
+mkl_random
+mkl-include
+notebook
+numpy
+pandas
+pillow
+pylint
+pytorch
+scikit-learn
+scipy
+seaborn
+statsmodels
+torchvision
